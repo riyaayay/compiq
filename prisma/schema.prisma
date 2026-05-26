@@ -1,0 +1,90 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Company {
+  id       String  @id @default(cuid())
+  name     String
+  slug     String  @unique
+  tier     Tier
+  industry String
+  roles    Role[]
+
+  @@map("companies")
+}
+
+model Role {
+  id              String  @id @default(cuid())
+  name            String
+  normalizedTitle String
+  companyId       String
+  company         Company @relation(fields: [companyId], references: [id])
+  levels          Level[]
+
+  @@map("roles")
+}
+
+model Level {
+  id          String   @id @default(cuid())
+  code        String
+  displayName String
+  sortOrder   Int
+  roleId      String
+  role        Role     @relation(fields: [roleId], references: [id])
+  salaries    Salary[]
+
+  @@map("levels")
+}
+
+model City {
+  id         String   @id @default(cuid())
+  name       String   @unique
+  costIndex  Int
+  salaries   Salary[]
+
+  @@map("cities")
+}
+
+model Salary {
+  id           String   @id @default(cuid())
+  baseSalary   Float
+  bonus        Float    @default(0)
+  esop         Float    @default(0)
+  joiningBonus Float    @default(0)
+  yoe          Int
+  isVerified   Boolean  @default(false)
+  source       String   @default("user_submitted")
+  submittedAt  DateTime @default(now())
+  levelId      String
+  cityId       String
+  userId       String?
+  level        Level    @relation(fields: [levelId], references: [id])
+  city         City     @relation(fields: [cityId], references: [id])
+  user         User?    @relation(fields: [userId], references: [id])
+
+  @@map("salaries")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String?
+  name         String?
+  image        String?
+  createdAt    DateTime @default(now())
+  salaries     Salary[]
+
+  @@map("users")
+}
+
+enum Tier {
+  FAANG
+  PRODUCT_STARTUP
+  MNC
+  IT_SERVICES
+}
