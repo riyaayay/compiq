@@ -16,12 +16,15 @@ export default function ProgressionChart({ data }: { data: Level[] }) {
   }
 
   const chartData = data.map(l => ({
-    level:  l.levelCode,
-    'Median TC':   l.medianTC,
-    'Base':        l.medianBase,
-    'Bonus':       l.medianBonus,
-    'ESOP':        l.medianEsop,
+    level:       l.levelCode,
+    'Median TC': l.medianTC,
+    'Base':      l.medianBase,
+    'Bonus':     l.medianBonus,
+    'ESOP':      l.medianEsop,
   }))
+
+  // recharts Tooltip formatter receives ValueType (string|number|undefined) — use Number() to be type-safe
+  const tooltipFmt = (v: unknown) => [`₹${Number(v)}L`, ''] as [string, string]
 
   return (
     <div className="space-y-6">
@@ -32,7 +35,7 @@ export default function ProgressionChart({ data }: { data: Level[] }) {
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
             <XAxis dataKey="level" tick={{ fontSize: 12 }} />
             <YAxis tick={{ fontSize: 12 }} />
-            <Tooltip formatter={(v: number) => [`₹${v}L`, '']} />
+            <Tooltip formatter={tooltipFmt} />
             <Legend />
             <Area type="monotone" dataKey="Median TC" stroke="#2563eb" fill="#dbeafe" strokeWidth={2} />
           </AreaChart>
@@ -46,7 +49,7 @@ export default function ProgressionChart({ data }: { data: Level[] }) {
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
             <XAxis dataKey="level" tick={{ fontSize: 12 }} />
             <YAxis tick={{ fontSize: 12 }} />
-            <Tooltip formatter={(v: number) => [`₹${v}L`, '']} />
+            <Tooltip formatter={tooltipFmt} />
             <Legend />
             <Area type="monotone" dataKey="Base"  stroke="#64748b" fill="#f1f5f9" strokeWidth={1.5} stackId="1" />
             <Area type="monotone" dataKey="Bonus" stroke="#16a34a" fill="#dcfce7" strokeWidth={1.5} stackId="1" />
