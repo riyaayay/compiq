@@ -3,14 +3,13 @@ import { prisma } from '@/lib/prisma'
 
 export async function GET(
   _req: NextRequest,
-  context: { params: Promise<{ slug: string }> } // Define params as a Promise
+  { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
-    // Await the params before extracting the slug
-    const { slug } = await context.params
+    const { slug } = await params
 
     const company = await prisma.company.findUnique({
-      where: { slug: slug },
+      where: { slug },
       include: {
         roles: {
           include: {
