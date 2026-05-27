@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const params = querySchema.parse(Object.fromEntries(searchParams))
 
-    const where: any = {}
+    const where: Record<string, unknown> = {}
 
     if (params.company) {
       where.level = {
@@ -28,61 +28,73 @@ export async function GET(request: NextRequest) {
       }
     }
     if (params.level) {
-      where.level = { ...where.level, code: params.level }
+      where.level = { ...(where.level as object), code: params.level }
     }
     if (params.city) {
       where.city = { name: params.city }
     }
 
-    const [salaries, total] = await Promise.all([
-      prisma.salary.findMany({
-        where,
-        include: {
-          level: { include: { role: { include: { company: true } } } },
-          city:  true,
-        },
-        skip: (params.page - 1) * params.limit,
-        take: params.limit,
-        orderBy: params.sortBy === 'baseSalary'
-          ? { baseSalary: params.sortOrder }
-          : params.sortBy === 'submittedAt'
-          ? { submittedAt: params.sortOrder }
-          : { baseSalary: params.sortOrder }, // totalComp: sort by baseSalary (dominant component)
-      }),
-      prisma.salary.count({ where }),
-    ])
+    // Fetch ALL matching records so we can sort by totalComp (computed field)
+    // and then paginate in memory. Dataset is small enough for this to be fast.
+    const allSalaries = await prisma.salary.findMany({
+      where,
+      include: {
+        level: { include: { role: { include: { company: true } } } },
+        city:  true,
+      },
+      // For submittedAt sort we let DB do it; for computed fields we sort below
+      orderBy: params.sortBy === 'submittedAt'
+        ? { submittedAt: params.sortOrder }
+        : { submittedAt: 'desc' }, // stable secondary sort
+    })
 
-    const data = salaries
-      .map(s => ({
-        id:          s.id,
-        company:     s.level.role.company.name,
-        companySlug: s.level.role.company.slug,
-        tier:        s.level.role.company.tier,
-        role:        s.level.role.name,
-        level:       s.level.code,
-        levelDisplay:s.level.displayName,
-        city:        s.city.name,
-        baseSalary:  s.baseSalary,
-        bonus:       s.bonus,
-        esop:        s.esop,
-        totalComp:   Math.round(s.baseSalary + s.bonus + s.esop),
-        yoe:         s.yoe,
-        isVerified:  s.isVerified,
-        submittedAt: s.submittedAt,
-      }))
-      .filter(s =>
-        (!params.minComp || s.totalComp >= params.minComp) &&
-        (!params.maxComp || s.totalComp <= params.maxComp)
+    // Map → compute totalComp → filter → sort → paginate
+    const mapped = allSalaries.map(s => ({
+      id:           s.id,
+      company:      s.level.role.company.name,
+      companySlug:  s.level.role.company.slug,
+      tier:         s.level.role.company.tier,
+      role:         s.level.role.name,
+      level:        s.level.code,
+      levelDisplay: s.level.displayName,
+      city:         s.city.name,
+      baseSalary:   s.baseSalary,
+      bonus:        s.bonus,
+      esop:         s.esop,
+      totalComp:    Math.round(s.baseSalary + s.bonus + s.esop),
+      yoe:          s.yoe,
+      isVerified:   s.isVerified,
+      submittedAt:  s.submittedAt,
+    }))
+
+    const filtered = mapped.filter(s =>
+      (!params.minComp || s.totalComp >= params.minComp) &&
+      (!params.maxComp || s.totalComp <= params.maxComp)
+    )
+
+    // Sort by the exact requested field (totalComp and baseSalary are numbers here)
+    if (params.sortBy === 'totalComp' || params.sortBy === 'baseSalary') {
+      const field = params.sortBy
+      filtered.sort((a, b) =>
+        params.sortOrder === 'desc'
+          ? b[field] - a[field]
+          : a[field] - b[field]
       )
+    }
+    // submittedAt already sorted by DB orderBy above
 
+    const total    = filtered.length
+    const page     = params.page
+    const limit    = params.limit
+    const data     = filtered.slice((page - 1) * limit, page * limit)
 
     return NextResponse.json({
       data,
       pagination: {
         total,
-        page:       params.page,
-        limit:      params.limit,
-        totalPages: Math.ceil(total / params.limit),
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
       },
     })
   } catch (err) {
