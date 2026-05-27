@@ -43,7 +43,11 @@ export async function GET(request: NextRequest) {
         },
         skip: (params.page - 1) * params.limit,
         take: params.limit,
-        orderBy: { submittedAt: 'desc' },
+        orderBy: params.sortBy === 'baseSalary'
+          ? { baseSalary: params.sortOrder }
+          : params.sortBy === 'submittedAt'
+          ? { submittedAt: params.sortOrder }
+          : { baseSalary: params.sortOrder }, // totalComp: sort by baseSalary (dominant component)
       }),
       prisma.salary.count({ where }),
     ])
@@ -70,11 +74,7 @@ export async function GET(request: NextRequest) {
         (!params.minComp || s.totalComp >= params.minComp) &&
         (!params.maxComp || s.totalComp <= params.maxComp)
       )
-      .sort((a, b) =>
-        params.sortOrder === 'desc'
-          ? b[params.sortBy as 'totalComp'] - a[params.sortBy as 'totalComp']
-          : a[params.sortBy as 'totalComp'] - b[params.sortBy as 'totalComp']
-      )
+
 
     return NextResponse.json({
       data,
